@@ -1,0 +1,10 @@
+.DS_Store
+*~
+*.orig
+*.exe
+.*.swp
+.idea
+core
+coverage.txt
+pprof
+vendor
