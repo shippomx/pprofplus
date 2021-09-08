@@ -14,7 +14,7 @@ type Mem struct {
 var Cli *gorm.DB
 
 func dbFileExist(path string) bool {
-	_, err := os.Stat(path)    //os.Stat获取文件信息
+	_, err := os.Stat(path) //os.Stat获取文件信息
 	if err != nil {
 		if os.IsExist(err) {
 			return true

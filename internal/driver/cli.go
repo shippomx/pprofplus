@@ -38,7 +38,7 @@ type source struct {
 	HTTPHostport       string
 	HTTPDisableBrowser bool
 	Comment            string
-	ProbeGran			string
+	ProbeGran          string
 }
 
 // parseFlags parses the command lines through the specified flags package
@@ -151,7 +151,7 @@ func parseFlags(o *plugin.Options) (*source, []string, error) {
 		HTTPHostport:       *flagHTTP,
 		HTTPDisableBrowser: *flagNoBrowser,
 		Comment:            *flagAddComment,
-		ProbeGran:			*flagProbeGran,
+		ProbeGran:          *flagProbeGran,
 	}
 
 	if err := source.addBaseProfiles(*flagBase, *flagDiffBase); err != nil {

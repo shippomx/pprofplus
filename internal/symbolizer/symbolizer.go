@@ -25,11 +25,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ianlancetaylor/demangle"
 	"github.com/shippomx/pprofplus/internal/binutils"
 	"github.com/shippomx/pprofplus/internal/plugin"
 	"github.com/shippomx/pprofplus/internal/symbolz"
 	"github.com/shippomx/pprofplus/profile"
-	"github.com/ianlancetaylor/demangle"
 )
 
 // Symbolizer implements the plugin.Symbolize interface.

@@ -55,9 +55,9 @@ func PProf(eo *plugin.Options) error {
 		return generateReport(p, cmd, currentConfig(), o)
 	}
 	if src.ProbeGran != "" {
-		go func (){
+		go func() {
 			c := cron.New(cron.WithSeconds())
-			c.AddFunc("@every " + src.ProbeGran, func(){
+			c.AddFunc("@every "+src.ProbeGran, func() {
 				syncAndSaveProfiles(src, o)
 			})
 			c.Start()

@@ -40,7 +40,7 @@ var ProfileSource *[]string
 
 // webInterface holds the state needed for serving a browser based interface.
 type webInterface struct {
-	srcs		 []string
+	srcs         []string
 	prof         *profile.Profile
 	options      *plugin.Options
 	help         map[string]string
@@ -133,8 +133,8 @@ func serveWebInterface(hostport string, p *profile.Profile, o *plugin.Options, d
 			"/flamegraph":   http.HandlerFunc(ui.flamegraph),
 			"/saveconfig":   http.HandlerFunc(ui.saveConfig),
 			"/deleteconfig": http.HandlerFunc(ui.deleteConfig),
-			"/log":			 http.HandlerFunc(ui.HandleLog),
-			"/download":	 http.HandlerFunc(ui.HandleDownload),
+			"/log":          http.HandlerFunc(ui.HandleLog),
+			"/download":     http.HandlerFunc(ui.HandleDownload),
 		},
 	}
 
@@ -525,7 +525,7 @@ func (ui *webInterface) syncProfiles(key string) {
 	}
 	src := &source{}
 	if key != "" {
-		src.Sources = append(ui.srcs, StorageDir + "/" + StoragePrefix + key)
+		src.Sources = append(ui.srcs, StorageDir+"/"+StoragePrefix+key)
 		if len(ui.srcs) > 0 {
 			src.Sources = append(src.Sources, ui.srcs...)
 		}
@@ -549,9 +549,11 @@ func syncAndSaveProfiles(src *source, o *plugin.Options) (p *profile.Profile, er
 	}
 
 	mem.FilePath, _ = writeProfile(p, o)
-	ret := strings.Split(mem.FilePath, "inuse_space")
-	if len(ret) > 1 {
-		mem.FilePath = ret[1][1:]
+	if strings.Contains(mem.FilePath, "inuse_space") {
+		ret := strings.Split(mem.FilePath, "inuse_space")
+		if len(ret) > 1 {
+			mem.FilePath = ret[1][1:]
+		}
 	}
 	// use file
 	_, rpt, err := generateRawReport(p, []string{"peek"}, currentConfig(), o)
