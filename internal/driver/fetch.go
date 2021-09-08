@@ -35,11 +35,14 @@ import (
 	"github.com/shippomx/pprofplus/profile"
 )
 
+var StorageDir string
+var StoragePrefix string
+
 // fetchProfiles fetches and symbolizes the profiles specified by s.
 // It will merge all the profiles it is able to retrieve, even if
 // there are some failures. It will return an error if it is unable to
 // fetch any profiles.
-func fetchProfiles(s *source, o *plugin.Options) (*profile.Profile, error) {
+func fetchProfiles(s *source, o *plugin.Options) (*profile.Profile, bool, error) {
 	sources := make([]profileSource, 0, len(s.Sources))
 	for _, src := range s.Sources {
 		sources = append(sources, profileSource{
@@ -58,7 +61,7 @@ func fetchProfiles(s *source, o *plugin.Options) (*profile.Profile, error) {
 
 	p, pbase, m, mbase, save, err := grabSourcesAndBases(sources, bases, o.Fetch, o.Obj, o.UI, o.HTTPTransport)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if pbase != nil {
@@ -68,19 +71,19 @@ func fetchProfiles(s *source, o *plugin.Options) (*profile.Profile, error) {
 		if s.Normalize {
 			err := p.Normalize(pbase)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 		}
 		pbase.Scale(-1)
 		p, m, err = combineProfiles([]*profile.Profile{p, pbase}, []plugin.MappingSources{m, mbase})
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	// Symbolize the merged profile.
 	if err := o.Sym.Symbolize(s.Symbolize, m, p); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	p.RemoveUninteresting()
 	unsourceMappings(p)
@@ -91,35 +94,14 @@ func fetchProfiles(s *source, o *plugin.Options) (*profile.Profile, error) {
 
 	// Save a copy of the merged profile if there is at least one remote source.
 	if save {
-		dir, err := setTmpDir(o.UI)
-		if err != nil {
-			return nil, err
-		}
 
-		prefix := "pprof."
-		if len(p.Mapping) > 0 && p.Mapping[0].File != "" {
-			prefix += filepath.Base(p.Mapping[0].File) + "."
-		}
-		for _, s := range p.SampleType {
-			prefix += s.Type + "."
-		}
-
-		tempFile, err := newTempFile(dir, prefix, ".pb.gz")
-		if err == nil {
-			if err = p.Write(tempFile); err == nil {
-				o.UI.PrintErr("Saved profile in ", tempFile.Name())
-			}
-		}
-		if err != nil {
-			o.UI.PrintErr("Could not save profile: ", err)
-		}
 	}
 
 	if err := p.CheckValid(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return p, nil
+	return p, false, nil
 }
 
 func grabSourcesAndBases(sources, bases []profileSource, fetch plugin.Fetcher, obj plugin.ObjTool, ui plugin.UI, tr http.RoundTripper) (*profile.Profile, *profile.Profile, plugin.MappingSources, plugin.MappingSources, bool, error) {
@@ -584,4 +566,33 @@ func adjustURL(source string, duration, timeout time.Duration) (string, time.Dur
 	}
 	u.RawQuery = values.Encode()
 	return u.String(), timeout
+}
+
+func writeProfile(p *profile.Profile, o *plugin.Options) (fileName string, err error) {
+	tempFile, err := newTempFile(StorageDir, StoragePrefix, ".pb.gz")
+	if err == nil {
+		if err = p.Write(tempFile); err == nil {
+			o.UI.PrintErr("Saved profile in ", tempFile.Name())
+		}
+	}
+	if err != nil {
+		o.UI.PrintErr("Could not save profile: ", err)
+	}
+	return tempFile.Name(), nil
+}
+
+func setStorge(p *profile.Profile, o *plugin.Options) (dir string, prefix string) {
+	dir, err := setTmpDir(o.UI)
+	if err != nil {
+		return
+	}
+
+	prefix = "pprof."
+	if len(p.Mapping) > 0 && p.Mapping[0].File != "" {
+		prefix += filepath.Base(p.Mapping[0].File) + "."
+	}
+	for _, s := range p.SampleType {
+		prefix += s.Type + "."
+	}
+	return
 }

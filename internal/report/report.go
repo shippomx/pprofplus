@@ -1319,3 +1319,17 @@ func abs64(i int64) int64 {
 	}
 	return i
 }
+
+// CalSum returns a list of sum
+func CalSum(rpt *Report) (float64, string) {
+	g, _, _, _ := rpt.newTrimmedGraph()
+	rpt.selectOutputUnit(g)
+	var flatSum int64
+	for _, n := range g.Nodes {
+		flatSum += n.FlatValue()
+	}
+	//return rpt.formatValue(flatSum)
+	v, u := measurement.Scale(flatSum, rpt.options.SampleUnit, rpt.options.OutputUnit)
+	vv, _ := strconv.ParseFloat(fmt.Sprintf("%.2f", v), 64)
+	return vv, u
+}

@@ -16,7 +16,10 @@ package driver
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/shippomx/pprofplus/internal/db"
+	"github.com/shippomx/pprofplus/internal/types"
 	"html/template"
 	"net"
 	"net/http"
@@ -33,8 +36,11 @@ import (
 	"github.com/shippomx/pprofplus/profile"
 )
 
+var ProfileSource *[]string
+
 // webInterface holds the state needed for serving a browser based interface.
 type webInterface struct {
+	srcs		 []string
 	prof         *profile.Profile
 	options      *plugin.Options
 	help         map[string]string
@@ -127,11 +133,8 @@ func serveWebInterface(hostport string, p *profile.Profile, o *plugin.Options, d
 			"/flamegraph":   http.HandlerFunc(ui.flamegraph),
 			"/saveconfig":   http.HandlerFunc(ui.saveConfig),
 			"/deleteconfig": http.HandlerFunc(ui.deleteConfig),
-			"/download": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.Header().Set("Content-Type", "application/vnd.google.protobuf+gzip")
-				w.Header().Set("Content-Disposition", "attachment;filename=profile.pb.gz")
-				p.Write(w)
-			}),
+			"/log":			 http.HandlerFunc(ui.HandleLog),
+			"/download":	 http.HandlerFunc(ui.HandleDownload),
 		},
 	}
 
@@ -296,6 +299,8 @@ func (ui *webInterface) render(w http.ResponseWriter, req *http.Request, tmpl st
 
 // dot generates a web page containing an svg diagram.
 func (ui *webInterface) dot(w http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("file")
+	ui.syncProfiles(key)
 	rpt, errList := ui.makeReport(w, req, []string{"svg"}, nil)
 	if rpt == nil {
 		return // error already reported
@@ -348,6 +353,8 @@ func dotToSvg(dot []byte) ([]byte, error) {
 }
 
 func (ui *webInterface) top(w http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("file")
+	ui.syncProfiles(key)
 	rpt, errList := ui.makeReport(w, req, []string{"top"}, func(cfg *config) {
 		cfg.NodeCount = 500
 	})
@@ -368,6 +375,8 @@ func (ui *webInterface) top(w http.ResponseWriter, req *http.Request) {
 
 // disasm generates a web page containing disassembly.
 func (ui *webInterface) disasm(w http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("file")
+	ui.syncProfiles(key)
 	args := []string{"disasm", req.URL.Query().Get("f")}
 	rpt, errList := ui.makeReport(w, req, args, nil)
 	if rpt == nil {
@@ -391,6 +400,8 @@ func (ui *webInterface) disasm(w http.ResponseWriter, req *http.Request) {
 // source generates a web page containing source code annotated with profile
 // data.
 func (ui *webInterface) source(w http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("file")
+	ui.syncProfiles(key)
 	args := []string{"weblist", req.URL.Query().Get("f")}
 	rpt, errList := ui.makeReport(w, req, args, nil)
 	if rpt == nil {
@@ -413,6 +424,8 @@ func (ui *webInterface) source(w http.ResponseWriter, req *http.Request) {
 
 // peek generates a web page listing callers/callers.
 func (ui *webInterface) peek(w http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("file")
+	ui.syncProfiles(key)
 	args := []string{"peek", req.URL.Query().Get("f")}
 	rpt, errList := ui.makeReport(w, req, args, func(cfg *config) {
 		cfg.Granularity = "lines"
@@ -462,4 +475,90 @@ func getFromLegend(legend []string, param, def string) string {
 		}
 	}
 	return def
+}
+
+func (ui *webInterface) HandleDownload(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/vnd.google.protobuf+gzip")
+	w.Header().Set("Content-Disposition", "attachment;filename=profile.pb.gz")
+	ui.prof.Write(w)
+}
+
+func (ui *webInterface) HandleLog(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "*")
+	start := req.FormValue("start")
+	end := req.FormValue("end")
+	var startMinute int64
+	if start == "" {
+		startMinute = 30
+	} else {
+		t, _ := time.ParseDuration(start)
+		startMinute = int64(t / 60000000000)
+	}
+
+	var endMinute int64
+	if end == "" {
+		endMinute = 0
+	} else {
+		t, _ := time.ParseDuration(end)
+		endMinute = int64(t / 60000000000)
+	}
+
+	var all []types.MemProfile
+	beginUnix := time.Now().Unix() - 60*startMinute
+	endUnix := time.Now().Unix() - 60*endMinute
+	if beginUnix >= endUnix {
+		w.Write(nil)
+		return
+	}
+
+	db.Cli.Find(&all, "created_at > ? and created_at < ?", beginUnix, endUnix)
+	ret, _ := json.Marshal(all)
+	w.Write(ret)
+}
+
+func (ui *webInterface) syncProfiles(key string) {
+	var p types.MemProfile
+	if key == "" {
+		db.Cli.Order("created_at desc").Find(&p)
+		key = p.FilePath
+	}
+	src := &source{}
+	if key != "" {
+		src.Sources = append(ui.srcs, StorageDir + "/" + StoragePrefix + key)
+		if len(ui.srcs) > 0 {
+			src.Sources = append(src.Sources, ui.srcs...)
+		}
+		ui.prof, _, _ = fetchProfiles(src, ui.options)
+	} else {
+		src.Sources = append(src.Sources, *ProfileSource...)
+		ui.prof, _ = syncAndSaveProfiles(src, ui.options)
+	}
+}
+
+func syncAndSaveProfiles(src *source, o *plugin.Options) (p *profile.Profile, err error) {
+	p, _, err = fetchProfiles(src, o)
+	if err != nil {
+		return
+	}
+	if StorageDir == "" || StoragePrefix == "" {
+		StorageDir, StoragePrefix = setStorge(p, o)
+	}
+	mem := &types.MemProfile{
+		CreatedAt: time.Now().Unix(),
+	}
+
+	mem.FilePath, _ = writeProfile(p, o)
+	ret := strings.Split(mem.FilePath, "inuse_space")
+	if len(ret) > 1 {
+		mem.FilePath = ret[1][1:]
+	}
+	// use file
+	_, rpt, err := generateRawReport(p, []string{"peek"}, currentConfig(), o)
+	if err != nil {
+		return
+	}
+	mem.ProMemRss, mem.Unit = report.CalSum(rpt)
+	db.Cli.Create(mem)
+	return
 }

@@ -8,3 +8,5 @@ core
 coverage.txt
 pprof
 vendor
+*.db
+*.pb.gz

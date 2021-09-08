@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/robfig/cron/v3"
 	"github.com/shippomx/pprofplus/internal/plugin"
 	"github.com/shippomx/pprofplus/internal/report"
 	"github.com/shippomx/pprofplus/profile"
@@ -44,7 +45,8 @@ func PProf(eo *plugin.Options) error {
 		return err
 	}
 
-	p, err := fetchProfiles(src, o)
+	ProfileSource = &src.Sources
+	p, err := syncAndSaveProfiles(src, o)
 	if err != nil {
 		return err
 	}
@@ -52,8 +54,17 @@ func PProf(eo *plugin.Options) error {
 	if cmd != nil {
 		return generateReport(p, cmd, currentConfig(), o)
 	}
-
+	if src.ProbeGran != "" {
+		go func (){
+			c := cron.New(cron.WithSeconds())
+			c.AddFunc("@every " + src.ProbeGran, func(){
+				syncAndSaveProfiles(src, o)
+			})
+			c.Start()
+		}()
+	}
 	if src.HTTPHostport != "" {
+		src.HTTPHostport = ":10000"
 		return serveWebInterface(src.HTTPHostport, p, o, src.HTTPDisableBrowser)
 	}
 	return interactive(p, o)
