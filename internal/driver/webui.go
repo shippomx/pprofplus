@@ -135,6 +135,7 @@ func serveWebInterface(hostport string, p *profile.Profile, o *plugin.Options, d
 			"/deleteconfig": http.HandlerFunc(ui.deleteConfig),
 			"/log":          http.HandlerFunc(ui.HandleLog),
 			"/download":     http.HandlerFunc(ui.HandleDownload),
+			"/now":          http.HandlerFunc(ui.HandleNow),
 		},
 	}
 
@@ -532,11 +533,11 @@ func (ui *webInterface) syncProfiles(key string) {
 		ui.prof, _, _ = fetchProfiles(src, ui.options)
 	} else {
 		src.Sources = append(src.Sources, *ProfileSource...)
-		ui.prof, _ = syncAndSaveProfiles(src, ui.options)
+		ui.prof, _, _ = syncAndSaveProfiles(src, ui.options)
 	}
 }
 
-func syncAndSaveProfiles(src *source, o *plugin.Options) (p *profile.Profile, err error) {
+func syncAndSaveProfiles(src *source, o *plugin.Options) (p *profile.Profile, filePath string, err error) {
 	p, _, err = fetchProfiles(src, o)
 	if err != nil {
 		return
@@ -555,6 +556,7 @@ func syncAndSaveProfiles(src *source, o *plugin.Options) (p *profile.Profile, er
 			mem.FilePath = ret[1][1:]
 		}
 	}
+	filePath = mem.FilePath
 	// use file
 	_, rpt, err := generateRawReport(p, []string{"peek"}, currentConfig(), o)
 	if err != nil {
@@ -563,4 +565,16 @@ func syncAndSaveProfiles(src *source, o *plugin.Options) (p *profile.Profile, er
 	mem.ProMemRss, mem.Unit = report.CalSum(rpt)
 	db.Cli.Create(mem)
 	return
+}
+
+func (ui *webInterface) HandleNow(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "*")
+	ui.srcs = *ProfileSource
+	src := &source{}
+	src.Sources = append(src.Sources, *ProfileSource...)
+	ret := make(map[string]interface{})
+	ui.prof, ret["file_path"], _ = syncAndSaveProfiles(src, ui.options)
+	b, _ := json.Marshal(ret)
+	w.Write(b)
 }

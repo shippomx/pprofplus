@@ -12,6 +12,9 @@
            v-model="formMess.time_end">
     <span class="button"
           @click="onSubmit()">提交</span>
+    <span> - </span>
+    <span class="button"
+          @click="onNow()">获取最新pprof</span>
   </div>
 </template>
 
@@ -100,7 +103,7 @@ export default {
 
       option && myChart.setOption(option)
       myChart.on('click', function (param) {
-        window.open("http://localhost:10000/ui/peek?file=" + param.data.url)
+        window.open("http://localhost:10000/ui/?file=" + param.data.url)
       })
     },
     formatDate(value) {
@@ -120,59 +123,68 @@ export default {
     },
     setChart(time_begin, time_end) {
       axios
-        .get('http://127.0.0.1:10000/ui/log?start=' + time_begin + '&' + 'end=' + time_end)
-        .then(response => {
-          console.log(response.data)
-          let xAxis = []
-          let yAxis = []
-          let unit = ''
-          if (response.data.length === 0) {
-            alert('No data retrieved!')
-            return
-          }
-          response.data.forEach(mem => {
-            if (unit === '' && mem["unit"] !== 'B') {
-              unit = mem["unit"]
+          .get('http://127.0.0.1:10000/ui/log?start=' + time_begin + '&' + 'end=' + time_end)
+          .then(response => {
+            let xAxis = []
+            let yAxis = []
+            let unit = ''
+            if (response.data.length === 0) {
+              alert('No data retrieved!')
+              return
             }
-            let a = { url: '', value: 0 }
-            xAxis[xAxis.length] = this.formatDate(mem["created_at"])
-            if (mem["file_path"] !== undefined) {
-              a.url = mem["file_path"]
-            }
-            if (mem["unit"] === 'B') {
-              a.value = 0
-            } else if (unit === 'kB') {
-              if (mem["unit"] === 'kB') {
-                a.value = mem["pro_mem_rss"]
-              } else if (mem["unit"] === 'MB') {
-                a.value = mem["pro_mem_rss"] * 1024
-              } else if (mem["unit"] === 'GB') {
-                a.value = mem["pro_mem_rss"] * 1024 * 1024
+            response.data.forEach(mem => {
+              if (unit === '' && mem["unit"] !== 'B') {
+                unit = mem["unit"]
               }
-            } else if (unit === 'MB') {
-              if (mem["unit"] === 'kB') {
-                a.value = mem["pro_mem_rss"] / 1024
-              } else if (mem["unit"] === 'MB') {
-                a.value = mem["pro_mem_rss"]
-              } else if (mem["unit"] === 'GB') {
-                a.value = mem["pro_mem_rss"] * 1024
+              let a = {url: '', value: 0}
+              xAxis[xAxis.length] = this.formatDate(mem["created_at"])
+              if (mem["file_path"] !== undefined) {
+                a.url = mem["file_path"]
               }
-            } else if (unit === 'GB') {
-              if (mem["unit"] === 'kB') {
-                a.value = mem["pro_mem_rss"] / 1024 / 1024
-              } else if (mem["unit"] === 'MB') {
-                a.value = mem["pro_mem_rss"] / 1024
-              } else if (mem["unit"] === 'GB') {
-                a.value = mem["pro_mem_rss"]
+              if (mem["unit"] === 'B') {
+                a.value = 0
+              } else if (unit === 'kB') {
+                if (mem["unit"] === 'kB') {
+                  a.value = mem["pro_mem_rss"]
+                } else if (mem["unit"] === 'MB') {
+                  a.value = mem["pro_mem_rss"] * 1024
+                } else if (mem["unit"] === 'GB') {
+                  a.value = mem["pro_mem_rss"] * 1024 * 1024
+                }
+              } else if (unit === 'MB') {
+                if (mem["unit"] === 'kB') {
+                  a.value = mem["pro_mem_rss"] / 1024
+                } else if (mem["unit"] === 'MB') {
+                  a.value = mem["pro_mem_rss"]
+                } else if (mem["unit"] === 'GB') {
+                  a.value = mem["pro_mem_rss"] * 1024
+                }
+              } else if (unit === 'GB') {
+                if (mem["unit"] === 'kB') {
+                  a.value = mem["pro_mem_rss"] / 1024 / 1024
+                } else if (mem["unit"] === 'MB') {
+                  a.value = mem["pro_mem_rss"] / 1024
+                } else if (mem["unit"] === 'GB') {
+                  a.value = mem["pro_mem_rss"]
+                }
               }
-            }
-            yAxis[yAxis.length] = a
+              yAxis[yAxis.length] = a
+            })
+            this.initChart(xAxis, yAxis, unit)
           })
-          this.initChart(xAxis, yAxis, unit)
-        })
     },
     onSubmit() {
       this.setChart(this.formMess["time_begin"], this.formMess["time_end"])
+    },
+    onNow() {
+      axios
+          .get('http://127.0.0.1:10000/ui/now')
+          .then(response => {
+            if (response.data != null) {
+              this.setChart(this.formMess["time_begin"], this.formMess["time_end"])
+              window.open("http://localhost:10000/ui/?file=" + response.data["file_path"])
+            }
+          })
     },
   },
   mounted() {

@@ -46,7 +46,7 @@ func PProf(eo *plugin.Options) error {
 	}
 
 	ProfileSource = &src.Sources
-	p, err := syncAndSaveProfiles(src, o)
+	p, _, err := syncAndSaveProfiles(src, o)
 	if err != nil {
 		return err
 	}
