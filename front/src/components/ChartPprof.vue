@@ -176,7 +176,7 @@ export default {
     },
   },
   mounted() {
-    this.setChart('2h')
+    this.setChart('2h', '')
   }
 
 }

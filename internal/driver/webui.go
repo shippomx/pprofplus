@@ -488,25 +488,32 @@ func (ui *webInterface) HandleLog(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "*")
 	start := req.FormValue("start")
 	end := req.FormValue("end")
-	var startMinute int64
+	var startMinute, beginUnix int64
 	if start == "" {
-		startMinute = 30
-	} else {
+		startMinute = 120
+	} else if len(start) < 8 {
 		t, _ := time.ParseDuration(start)
 		startMinute = int64(t / 60000000000)
+		beginUnix = time.Now().Unix() - 60*startMinute
+	} else {
+		beginTime, _ := time.Parse("2006-01-02 15:04:05", start)
+		beginUnix = beginTime.Unix()
 	}
 
 	var endMinute int64
+	endUnix := time.Now().Unix()
 	if end == "" {
 		endMinute = 0
-	} else {
+	} else if len(end) < 8 {
 		t, _ := time.ParseDuration(end)
 		endMinute = int64(t / 60000000000)
+		endUnix = time.Now().Unix() - 60*endMinute
+	} else {
+		endTime, _ := time.Parse("2006-01-02 15:04:05", end)
+		endUnix = endTime.Unix()
 	}
 
 	var all []types.MemProfile
-	beginUnix := time.Now().Unix() - 60*startMinute
-	endUnix := time.Now().Unix() - 60*endMinute
 	if beginUnix >= endUnix {
 		w.Write(nil)
 		return
