@@ -182,7 +182,7 @@ export default {
           .then(response => {
             if (response.data != null) {
               this.setChart(this.formMess["time_begin"], this.formMess["time_end"])
-              window.open("http://localhost:10000/ui/?file=" + response.data["file_path"])
+              window.open("http://localhost:10000/ui?file=" + response.data["file_path"])
             }
           })
     },
